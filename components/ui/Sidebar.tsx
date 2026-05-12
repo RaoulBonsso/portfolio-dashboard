@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -18,6 +18,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { Button } from "./Button";
+import { supabase } from "@/lib/supabase";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -32,7 +33,13 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = React.useState(false);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
   return (
     <>
@@ -93,12 +100,14 @@ export function Sidebar() {
           </nav>
 
           <div className="border-t border-[rgba(100,255,218,0.1)] p-3">
-            <Link href="/login">
-              <Button variant="ghost" className="w-full justify-start gap-3 text-muted hover:text-foreground">
-                <LogOut className="h-5 w-5" />
-                Déconnexion
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-muted hover:text-foreground"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-5 w-5" />
+              Déconnexion
+            </Button>
           </div>
         </div>
       </aside>

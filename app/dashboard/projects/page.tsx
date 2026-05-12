@@ -9,31 +9,11 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/Toast";
 import { Project } from "@/types";
+import { useProjects } from "@/hooks/useSupabase";
 import { Plus, ExternalLink, Code } from "lucide-react";
 
-const initialProjects: Project[] = [
-  {
-    id: "1",
-    title: "E-commerce Platform",
-    description: "Plateforme e-commerce complète avec panier et paiement",
-    images: [],
-    links: { demo: "https://demo.com", repo: "https://github.com" },
-    technologies: ["React", "Node.js", "PostgreSQL"],
-    featured: true,
-  },
-  {
-    id: "2",
-    title: "Task Manager",
-    description: "Application de gestion de tâches collaborative",
-    images: [],
-    links: { demo: "https://demo.com", repo: "https://github.com" },
-    technologies: ["Next.js", "TypeScript", "Prisma"],
-    featured: false,
-  },
-];
-
 export default function ProjectsPage() {
-  const [projects, setProjects] = React.useState<Project[]>(initialProjects);
+  const { data: projects, loading, error, insert, update, remove } = useProjects();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
   const [formData, setFormData] = React.useState<Partial<Project>>({
@@ -55,36 +35,43 @@ export default function ProjectsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.title || !formData.description) {
       toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
 
-    if (editingProject) {
-      setProjects((prev) =>
-        prev.map((p) => (p.id === editingProject.id ? { ...p, ...formData } as Project : p))
-      );
-      toast.success("Projet mis à jour");
-    } else {
-      const newProject: Project = {
-        id: Date.now().toString(),
-        title: formData.title || "",
-        description: formData.description || "",
-        images: [],
-        technologies: formData.technologies || [],
-        links: formData.links || { demo: "", repo: "" },
-        featured: formData.featured || false,
-      };
-      setProjects((prev) => [...prev, newProject]);
-      toast.success("Projet ajouté");
+    try {
+      if (editingProject) {
+        await update(editingProject.id, formData);
+        toast.success("Projet mis à jour");
+      } else {
+        await insert({
+          title: formData.title || "",
+          description: formData.description || "",
+          images: [],
+          links: {
+            demo: formData.links?.demo || "",
+            repo: formData.links?.repo || "",
+          },
+          technologies: formData.technologies || [],
+          featured: formData.featured || false,
+        });
+        toast.success("Projet ajouté");
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la sauvegarde");
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (project: Project) => {
-    setProjects((prev) => prev.filter((p) => p.id !== project.id));
-    toast.success("Projet supprimé");
+  const handleDelete = async (project: Project) => {
+    try {
+      await remove(project.id);
+      toast.success("Projet supprimé");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la suppression");
+    }
   };
 
   const columns = [
@@ -144,6 +131,9 @@ export default function ProjectsPage() {
           Ajouter
         </Button>
       </div>
+
+      {loading && <div className="text-muted">Chargement...</div>}
+      {error && <div className="text-red-400">Erreur : {error}</div>}
 
       <DataTable
         columns={columns}

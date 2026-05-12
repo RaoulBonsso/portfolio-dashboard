@@ -71,3 +71,14 @@ export interface AnalyticsData {
   sources: { name: string; value: number }[];
   pages: { name: string; views: number }[];
 }
+
+export interface AnalyticsEvent {
+  id: string;
+  event_type: string;
+  page_path: string;
+  session_id: string;
+  referrer: string;
+  country: string;
+  device: string;
+  created_at: string;
+}

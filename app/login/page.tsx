@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Briefcase } from "lucide-react";
 import { toast } from "@/components/ui/Toast";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,12 +18,19 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulation d'authentification
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
       toast.success("Connexion réussie !");
       router.push("/dashboard");
-    }, 1000);
+    } catch (err: any) {
+      toast.error(err.message || "Erreur de connexion");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

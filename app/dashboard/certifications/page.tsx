@@ -8,37 +8,11 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/Toast";
 import { Certification } from "@/types";
+import { useCertifications } from "@/hooks/useSupabase";
 import { Plus, Award, ExternalLink } from "lucide-react";
 
-const initialCertifications: Certification[] = [
-  {
-    id: "1",
-    title: "AWS Solutions Architect",
-    organization: "Amazon Web Services",
-    date: "2023-06",
-    status: "valid",
-    url: "https://aws.amazon.com",
-  },
-  {
-    id: "2",
-    title: "Google Cloud Professional",
-    organization: "Google",
-    date: "2022-09",
-    status: "valid",
-    url: "https://cloud.google.com",
-  },
-  {
-    id: "3",
-    title: "Kubernetes Administrator",
-    organization: "CNCF",
-    date: "2024-01",
-    status: "in-progress",
-    url: "https://cncf.io",
-  },
-];
-
 export default function CertificationsPage() {
-  const [certifications, setCertifications] = React.useState<Certification[]>(initialCertifications);
+  const { data: certifications, loading, error, insert, update, remove } = useCertifications();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingCert, setEditingCert] = React.useState<Certification | null>(null);
   const [formData, setFormData] = React.useState<Partial<Certification>>({
@@ -60,35 +34,39 @@ export default function CertificationsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.title || !formData.organization) {
       toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
 
-    if (editingCert) {
-      setCertifications((prev) =>
-        prev.map((c) => (c.id === editingCert.id ? { ...c, ...formData } as Certification : c))
-      );
-      toast.success("Certification mise à jour");
-    } else {
-      const newCert: Certification = {
-        id: Date.now().toString(),
-        title: formData.title || "",
-        organization: formData.organization || "",
-        date: formData.date || "",
-        status: (formData.status as "valid" | "expired" | "in-progress") || "valid",
-        url: formData.url || "",
-      };
-      setCertifications((prev) => [...prev, newCert]);
-      toast.success("Certification ajoutée");
+    try {
+      if (editingCert) {
+        await update(editingCert.id, formData);
+        toast.success("Certification mise à jour");
+      } else {
+        await insert({
+          title: formData.title || "",
+          organization: formData.organization || "",
+          date: formData.date || "",
+          status: (formData.status as "valid" | "expired" | "in-progress") || "valid",
+          url: formData.url || "",
+        });
+        toast.success("Certification ajoutée");
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la sauvegarde");
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (cert: Certification) => {
-    setCertifications((prev) => prev.filter((c) => c.id !== cert.id));
-    toast.success("Certification supprimée");
+  const handleDelete = async (cert: Certification) => {
+    try {
+      await remove(cert.id);
+      toast.success("Certification supprimée");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la suppression");
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -146,6 +124,9 @@ export default function CertificationsPage() {
           Ajouter
         </Button>
       </div>
+
+      {loading && <div className="text-muted">Chargement...</div>}
+      {error && <div className="text-red-400">Erreur : {error}</div>}
 
       <DataTable
         columns={columns}

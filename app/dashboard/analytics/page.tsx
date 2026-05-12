@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { StatsCard } from "@/components/ui/StatsCard";
 import { ChartLine } from "@/components/ui/ChartLine";
@@ -7,52 +8,74 @@ import { ChartBar } from "@/components/ui/ChartBar";
 import { ChartPie } from "@/components/ui/ChartPie";
 import { DataTable } from "@/components/ui/DataTable";
 import { Eye, MousePointerClick, Clock, Globe } from "lucide-react";
-
-const visitsData = [
-  { name: "Lun", value: 320 },
-  { name: "Mar", value: 450 },
-  { name: "Mer", value: 380 },
-  { name: "Jeu", value: 520 },
-  { name: "Ven", value: 610 },
-  { name: "Sam", value: 290 },
-  { name: "Dim", value: 240 },
-];
-
-const monthlyVisits = [
-  { name: "Jan", value: 2400 },
-  { name: "Fév", value: 2100 },
-  { name: "Mar", value: 3200 },
-  { name: "Avr", value: 2800 },
-  { name: "Mai", value: 3500 },
-  { name: "Juin", value: 4100 },
-];
-
-const sourcesData = [
-  { name: "Direct", value: 450 },
-  { name: "Google", value: 320 },
-  { name: "GitHub", value: 180 },
-  { name: "LinkedIn", value: 120 },
-  { name: "Twitter", value: 80 },
-  { name: "Autres", value: 50 },
-];
-
-const pagesData = [
-  { name: "/", views: 1240 },
-  { name: "/projects", views: 850 },
-  { name: "/about", views: 620 },
-  { name: "/blog", views: 430 },
-  { name: "/contact", views: 210 },
-];
-
-const clicksData = [
-  { name: "GitHub", value: 340 },
-  { name: "LinkedIn", value: 210 },
-  { name: "Email", value: 150 },
-  { name: "CV PDF", value: 120 },
-  { name: "Demo", value: 95 },
-];
+import { useAnalytics } from "@/hooks/useSupabase";
 
 export default function AnalyticsPage() {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  const { data: events, loading, error } = useAnalytics(thirtyDaysAgo, now);
+
+  const totalVisits = events.filter((e) => e.event_type === "page_view").length;
+  const totalClicks = events.filter((e) => e.event_type === "click").length;
+
+  const visitsData = useMemo(() => {
+    const map = new Map<string, number>();
+    events
+      .filter((e) => e.event_type === "page_view")
+      .forEach((e) => {
+        const day = new Date(e.created_at).toLocaleDateString("fr-FR", { weekday: "short" });
+        map.set(day, (map.get(day) || 0) + 1);
+      });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [events]);
+
+  const monthlyVisits = useMemo(() => {
+    const map = new Map<string, number>();
+    events
+      .filter((e) => e.event_type === "page_view")
+      .forEach((e) => {
+        const month = e.created_at.slice(0, 7);
+        const label = month.split("-")[1];
+        const monthNames = ["", "Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+        const name = monthNames[parseInt(label, 10)] || month;
+        map.set(name, (map.get(name) || 0) + 1);
+      });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [events]);
+
+  const sourcesData = useMemo(() => {
+    const map = new Map<string, number>();
+    events.forEach((e) => {
+      const source = e.referrer || "Direct";
+      map.set(source, (map.get(source) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [events]);
+
+  const clicksData = useMemo(() => {
+    const map = new Map<string, number>();
+    events
+      .filter((e) => e.event_type === "click")
+      .forEach((e) => {
+        map.set(e.page_path, (map.get(e.page_path) || 0) + 1);
+      });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [events]);
+
+  const pagesData = useMemo(() => {
+    const map = new Map<string, number>();
+    events
+      .filter((e) => e.event_type === "page_view")
+      .forEach((e) => {
+        map.set(e.page_path, (map.get(e.page_path) || 0) + 1);
+      });
+    return Array.from(map.entries()).map(([name, views]) => ({ name, views }));
+  }, [events]);
+
+  const fallback = [{ name: "-", value: 0 }];
+  const fallbackPages = [{ name: "-", views: 0 }];
+
   return (
     <div className="space-y-6">
       <div>
@@ -60,17 +83,20 @@ export default function AnalyticsPage() {
         <p className="text-muted">Statistiques détaillées de votre portfolio</p>
       </div>
 
+      {loading && <div className="text-muted">Chargement...</div>}
+      {error && <div className="text-red-400">Erreur : {error}</div>}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Visites ce mois"
-          value="8,432"
+          value={totalVisits.toLocaleString()}
           description="+15% vs mois dernier"
           icon={Eye}
           trend={{ value: 15, positive: true }}
         />
         <StatsCard
           title="Clics ce mois"
-          value="1,156"
+          value={totalClicks.toLocaleString()}
           description="+8% vs mois dernier"
           icon={MousePointerClick}
           trend={{ value: 8, positive: true }}
@@ -97,7 +123,7 @@ export default function AnalyticsPage() {
             <CardTitle>Visites par jour (cette semaine)</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartLine data={visitsData} />
+            <ChartLine data={visitsData.length > 0 ? visitsData : fallback} />
           </CardContent>
         </Card>
 
@@ -106,7 +132,7 @@ export default function AnalyticsPage() {
             <CardTitle>Visites mensuelles</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartBar data={monthlyVisits} color="#64ffda" />
+            <ChartBar data={monthlyVisits.length > 0 ? monthlyVisits : fallback} color="#64ffda" />
           </CardContent>
         </Card>
       </div>
@@ -117,7 +143,7 @@ export default function AnalyticsPage() {
             <CardTitle>Sources de trafic</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartPie data={sourcesData} />
+            <ChartPie data={sourcesData.length > 0 ? sourcesData : fallback} />
           </CardContent>
         </Card>
 
@@ -126,7 +152,7 @@ export default function AnalyticsPage() {
             <CardTitle>Clics par lien</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartBar data={clicksData} color="#3b82f6" />
+            <ChartBar data={clicksData.length > 0 ? clicksData : fallback} color="#3b82f6" />
           </CardContent>
         </Card>
       </div>
@@ -141,7 +167,7 @@ export default function AnalyticsPage() {
               { key: "name", header: "Page" },
               { key: "views", header: "Vues" },
             ]}
-            data={pagesData}
+            data={pagesData.length > 0 ? pagesData : fallbackPages}
           />
         </CardContent>
       </Card>

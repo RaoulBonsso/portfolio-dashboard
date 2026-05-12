@@ -8,31 +8,11 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/Toast";
 import { Experience } from "@/types";
+import { useExperiences } from "@/hooks/useSupabase";
 import { Plus, Calendar, MapPin } from "lucide-react";
 
-const initialExperiences: Experience[] = [
-  {
-    id: "1",
-    company: "Tech Corp",
-    position: "Senior Developer",
-    startDate: "2022-01",
-    endDate: "Présent",
-    description: "Développement d'applications web en React et Node.js",
-    location: "Paris",
-  },
-  {
-    id: "2",
-    company: "StartupXYZ",
-    position: "Full Stack Developer",
-    startDate: "2020-06",
-    endDate: "2021-12",
-    description: "Création d'une plateforme SaaS de gestion de projet",
-    location: "Lyon",
-  },
-];
-
 export default function ExperiencesPage() {
-  const [experiences, setExperiences] = React.useState<Experience[]>(initialExperiences);
+  const { data: experiences, loading, error, insert, update, remove } = useExperiences();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingExperience, setEditingExperience] = React.useState<Experience | null>(null);
   const [formData, setFormData] = React.useState<Partial<Experience>>({
@@ -55,36 +35,40 @@ export default function ExperiencesPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.company || !formData.position) {
       toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
 
-    if (editingExperience) {
-      setExperiences((prev) =>
-        prev.map((e) => (e.id === editingExperience.id ? { ...e, ...formData } as Experience : e))
-      );
-      toast.success("Expérience mise à jour");
-    } else {
-      const newExp: Experience = {
-        id: Date.now().toString(),
-        company: formData.company || "",
-        position: formData.position || "",
-        startDate: formData.startDate || "",
-        endDate: formData.endDate || "",
-        description: formData.description || "",
-        location: formData.location || "",
-      };
-      setExperiences((prev) => [...prev, newExp]);
-      toast.success("Expérience ajoutée");
+    try {
+      if (editingExperience) {
+        await update(editingExperience.id, formData);
+        toast.success("Expérience mise à jour");
+      } else {
+        await insert({
+          company: formData.company || "",
+          position: formData.position || "",
+          startDate: formData.startDate || "",
+          endDate: formData.endDate || "",
+          description: formData.description || "",
+          location: formData.location || "",
+        });
+        toast.success("Expérience ajoutée");
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la sauvegarde");
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (exp: Experience) => {
-    setExperiences((prev) => prev.filter((e) => e.id !== exp.id));
-    toast.success("Expérience supprimée");
+  const handleDelete = async (exp: Experience) => {
+    try {
+      await remove(exp.id);
+      toast.success("Expérience supprimée");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la suppression");
+    }
   };
 
   const columns = [
@@ -126,6 +110,9 @@ export default function ExperiencesPage() {
           Ajouter
         </Button>
       </div>
+
+      {loading && <div className="text-muted">Chargement...</div>}
+      {error && <div className="text-red-400">Erreur : {error}</div>}
 
       <DataTable
         columns={columns}

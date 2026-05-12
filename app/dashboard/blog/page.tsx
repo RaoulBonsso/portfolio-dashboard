@@ -9,31 +9,11 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/Toast";
 import { BlogPost } from "@/types";
+import { useBlogPosts } from "@/hooks/useSupabase";
 import { Plus, FileText, Calendar } from "lucide-react";
 
-const initialPosts: BlogPost[] = [
-  {
-    id: "1",
-    title: "Introduction à TypeScript",
-    content: "TypeScript est un sur-ensemble de JavaScript qui ajoute des types statiques...",
-    image: "",
-    tags: ["TypeScript", "JavaScript"],
-    status: "published",
-    publishedAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    title: "Les hooks React expliqués",
-    content: "Les hooks sont une fonctionnalité introduite dans React 16.8...",
-    image: "",
-    tags: ["React", "Hooks"],
-    status: "draft",
-    publishedAt: "",
-  },
-];
-
 export default function BlogPage() {
-  const [posts, setPosts] = React.useState<BlogPost[]>(initialPosts);
+  const { data: posts, loading, error, insert, update, remove } = useBlogPosts();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingPost, setEditingPost] = React.useState<BlogPost | null>(null);
   const [formData, setFormData] = React.useState<Partial<BlogPost>>({
@@ -55,36 +35,40 @@ export default function BlogPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.title || !formData.content) {
       toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
 
-    if (editingPost) {
-      setPosts((prev) =>
-        prev.map((p) => (p.id === editingPost.id ? { ...p, ...formData } as BlogPost : p))
-      );
-      toast.success("Article mis à jour");
-    } else {
-      const newPost: BlogPost = {
-        id: Date.now().toString(),
-        title: formData.title || "",
-        content: formData.content || "",
-        image: formData.image || "",
-        tags: formData.tags || [],
-        status: (formData.status as "published" | "draft") || "draft",
-        publishedAt: formData.status === "published" ? new Date().toISOString().split("T")[0] : "",
-      };
-      setPosts((prev) => [...prev, newPost]);
-      toast.success("Article ajouté");
+    try {
+      if (editingPost) {
+        await update(editingPost.id, formData);
+        toast.success("Article mis à jour");
+      } else {
+        await insert({
+          title: formData.title || "",
+          content: formData.content || "",
+          image: formData.image || "",
+          tags: formData.tags || [],
+          status: (formData.status as "published" | "draft") || "draft",
+          publishedAt: formData.status === "published" ? new Date().toISOString().split("T")[0] : "",
+        });
+        toast.success("Article ajouté");
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la sauvegarde");
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (post: BlogPost) => {
-    setPosts((prev) => prev.filter((p) => p.id !== post.id));
-    toast.success("Article supprimé");
+  const handleDelete = async (post: BlogPost) => {
+    try {
+      await remove(post.id);
+      toast.success("Article supprimé");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la suppression");
+    }
   };
 
   const columns = [
@@ -146,6 +130,9 @@ export default function BlogPage() {
           Ajouter
         </Button>
       </div>
+
+      {loading && <div className="text-muted">Chargement...</div>}
+      {error && <div className="text-red-400">Erreur : {error}</div>}
 
       <DataTable
         columns={columns}

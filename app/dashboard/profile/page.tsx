@@ -7,28 +7,36 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { toast } from "@/components/ui/Toast";
 import { Profile } from "@/types";
+import { useProfiles } from "@/hooks/useSupabase";
 import { Code, Link, Globe, MessageCircle, Save, Upload } from "lucide-react";
 
-const initialProfile: Profile = {
-  id: "1",
-  name: "John Doe",
-  title: "Développeur Full Stack",
-  bio: "Passionné par le développement web et les nouvelles technologies. Je crée des applications modernes et performantes.",
+const emptyProfile: Profile = {
+  id: "",
+  name: "",
+  title: "",
+  bio: "",
   photo: "",
-  email: "john@example.com",
-  phone: "+33 6 12 34 56 78",
-  location: "Paris, France",
+  email: "",
+  phone: "",
+  location: "",
   socials: {
-    github: "https://github.com/johndoe",
-    linkedin: "https://linkedin.com/in/johndoe",
-    twitter: "https://twitter.com/johndoe",
-    website: "https://johndoe.dev",
+    github: "",
+    linkedin: "",
+    twitter: "",
+    website: "",
   },
 };
 
 export default function ProfilePage() {
-  const [profile, setProfile] = React.useState<Profile>(initialProfile);
-  const [loading, setLoading] = React.useState(false);
+  const { data: profiles, loading, error, insert, update } = useProfiles();
+  const [profile, setProfile] = React.useState<Profile>(emptyProfile);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (profiles.length > 0) {
+      setProfile(profiles[0]);
+    }
+  }, [profiles]);
 
   const handleChange = (field: keyof Profile, value: string) => {
     setProfile((prev) => ({ ...prev, [field]: value }));
@@ -43,11 +51,21 @@ export default function ProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      toast.success("Profil mis à jour avec succès !");
-    }, 1000);
+    setSaving(true);
+    try {
+      if (profiles.length > 0) {
+        await update(profiles[0].id, profile);
+        toast.success("Profil mis à jour avec succès !");
+      } else {
+        const { id, ...rest } = profile;
+        await insert(rest);
+        toast.success("Profil créé avec succès !");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la sauvegarde");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -56,6 +74,9 @@ export default function ProfilePage() {
         <h2 className="text-2xl font-bold text-foreground">Mon Profil</h2>
         <p className="text-muted">Gérez vos informations personnelles</p>
       </div>
+
+      {loading && <div className="text-muted">Chargement...</div>}
+      {error && <div className="text-red-400">Erreur : {error}</div>}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
@@ -141,9 +162,9 @@ export default function ProfilePage() {
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={saving || loading}>
             <Save className="mr-2 h-4 w-4" />
-            {loading ? "Enregistrement..." : "Enregistrer les modifications"}
+            {saving ? "Enregistrement..." : "Enregistrer les modifications"}
           </Button>
         </div>
       </form>

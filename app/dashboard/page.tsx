@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { StatsCard } from "@/components/ui/StatsCard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { ChartLine } from "@/components/ui/ChartLine";
@@ -12,25 +13,42 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-
-const visitsData = [
-  { name: "Jan", value: 400 },
-  { name: "Fév", value: 300 },
-  { name: "Mar", value: 550 },
-  { name: "Avr", value: 450 },
-  { name: "Mai", value: 600 },
-  { name: "Juin", value: 800 },
-];
-
-const clicksData = [
-  { name: "GitHub", value: 120 },
-  { name: "LinkedIn", value: 80 },
-  { name: "Email", value: 45 },
-  { name: "CV", value: 60 },
-  { name: "Demo", value: 95 },
-];
+import { useAnalytics, useProjects, useSkills } from "@/hooks/useSupabase";
 
 export default function DashboardPage() {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  const { data: events, loading: analyticsLoading, error: analyticsError } = useAnalytics(thirtyDaysAgo, now);
+  const { data: projects, loading: projectsLoading } = useProjects();
+  const { data: skills, loading: skillsLoading } = useSkills();
+
+  const loading = analyticsLoading || projectsLoading || skillsLoading;
+
+  const totalVisits = events.filter((e) => e.event_type === "page_view").length;
+  const totalClicks = events.filter((e) => e.event_type === "click").length;
+
+  const visitsData = useMemo(() => {
+    const map = new Map<string, number>();
+    events
+      .filter((e) => e.event_type === "page_view")
+      .forEach((e) => {
+        const month = e.created_at.slice(0, 7);
+        map.set(month, (map.get(month) || 0) + 1);
+      });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [events]);
+
+  const clicksData = useMemo(() => {
+    const map = new Map<string, number>();
+    events
+      .filter((e) => e.event_type === "click")
+      .forEach((e) => {
+        map.set(e.page_path, (map.get(e.page_path) || 0) + 1);
+      });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [events]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -38,30 +56,33 @@ export default function DashboardPage() {
         <p className="text-muted">Bienvenue dans votre tableau de bord</p>
       </div>
 
+      {loading && <div className="text-muted">Chargement...</div>}
+      {analyticsError && <div className="text-red-400">Erreur : {analyticsError}</div>}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Visites totales"
-          value="12,345"
+          value={totalVisits.toLocaleString()}
           description="Visites sur votre portfolio"
           icon={Eye}
           trend={{ value: 12, positive: true }}
         />
         <StatsCard
           title="Clicks"
-          value="1,234"
+          value={totalClicks.toLocaleString()}
           description="Clics sur vos liens"
           icon={MousePointerClick}
           trend={{ value: 8, positive: true }}
         />
         <StatsCard
           title="Projets"
-          value="24"
+          value={projects.length.toString()}
           description="Projets publiés"
           icon={FolderKanban}
         />
         <StatsCard
           title="Compétences"
-          value="56"
+          value={skills.length.toString()}
           description="Compétences listées"
           icon={Wrench}
         />
@@ -73,7 +94,7 @@ export default function DashboardPage() {
             <CardTitle>Visites mensuelles</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartLine data={visitsData} />
+            <ChartLine data={visitsData.length > 0 ? visitsData : [{ name: "-", value: 0 }]} />
           </CardContent>
         </Card>
 
@@ -82,7 +103,7 @@ export default function DashboardPage() {
             <CardTitle>Clics par lien</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartBar data={clicksData} />
+            <ChartBar data={clicksData.length > 0 ? clicksData : [{ name: "-", value: 0 }]} />
           </CardContent>
         </Card>
       </div>

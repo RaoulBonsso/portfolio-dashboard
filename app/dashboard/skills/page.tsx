@@ -8,19 +8,11 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/Toast";
 import { Skill } from "@/types";
+import { useSkills } from "@/hooks/useSupabase";
 import { Plus, Wrench } from "lucide-react";
 
-const initialSkills: Skill[] = [
-  { id: "1", name: "React", level: 95, category: "Frontend", icon: "react" },
-  { id: "2", name: "TypeScript", level: 90, category: "Frontend", icon: "typescript" },
-  { id: "3", name: "Node.js", level: 85, category: "Backend", icon: "node" },
-  { id: "4", name: "Python", level: 80, category: "Backend", icon: "python" },
-  { id: "5", name: "Docker", level: 75, category: "DevOps", icon: "docker" },
-  { id: "6", name: "PostgreSQL", level: 85, category: "Database", icon: "postgres" },
-];
-
 export default function SkillsPage() {
-  const [skills, setSkills] = React.useState<Skill[]>(initialSkills);
+  const { data: skills, loading, error, insert, update, remove } = useSkills();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingSkill, setEditingSkill] = React.useState<Skill | null>(null);
   const [formData, setFormData] = React.useState<Partial<Skill>>({
@@ -41,34 +33,38 @@ export default function SkillsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.category) {
       toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
 
-    if (editingSkill) {
-      setSkills((prev) =>
-        prev.map((s) => (s.id === editingSkill.id ? { ...s, ...formData } as Skill : s))
-      );
-      toast.success("Compétence mise à jour");
-    } else {
-      const newSkill: Skill = {
-        id: Date.now().toString(),
-        name: formData.name,
-        level: formData.level || 50,
-        category: formData.category,
-        icon: formData.icon || "",
-      };
-      setSkills((prev) => [...prev, newSkill]);
-      toast.success("Compétence ajoutée");
+    try {
+      if (editingSkill) {
+        await update(editingSkill.id, formData);
+        toast.success("Compétence mise à jour");
+      } else {
+        await insert({
+          name: formData.name,
+          level: formData.level || 50,
+          category: formData.category,
+          icon: formData.icon || "",
+        });
+        toast.success("Compétence ajoutée");
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la sauvegarde");
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (skill: Skill) => {
-    setSkills((prev) => prev.filter((s) => s.id !== skill.id));
-    toast.success("Compétence supprimée");
+  const handleDelete = async (skill: Skill) => {
+    try {
+      await remove(skill.id);
+      toast.success("Compétence supprimée");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la suppression");
+    }
   };
 
   const columns = [
@@ -112,6 +108,9 @@ export default function SkillsPage() {
           Ajouter
         </Button>
       </div>
+
+      {loading && <div className="text-muted">Chargement...</div>}
+      {error && <div className="text-red-400">Erreur : {error}</div>}
 
       <div className="flex flex-wrap gap-2">
         {Array.from(new Set(skills.map((s) => s.category))).map((cat) => (
