@@ -1,0 +1,176 @@
+"use client";
+
+import * as React from "react";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
+import { DataTable } from "@/components/ui/DataTable";
+import { Modal } from "@/components/ui/Modal";
+import { toast } from "@/components/ui/Toast";
+import { Skill } from "@/types";
+import { Plus, Wrench } from "lucide-react";
+
+const initialSkills: Skill[] = [
+  { id: "1", name: "React", level: 95, category: "Frontend", icon: "react" },
+  { id: "2", name: "TypeScript", level: 90, category: "Frontend", icon: "typescript" },
+  { id: "3", name: "Node.js", level: 85, category: "Backend", icon: "node" },
+  { id: "4", name: "Python", level: 80, category: "Backend", icon: "python" },
+  { id: "5", name: "Docker", level: 75, category: "DevOps", icon: "docker" },
+  { id: "6", name: "PostgreSQL", level: 85, category: "Database", icon: "postgres" },
+];
+
+export default function SkillsPage() {
+  const [skills, setSkills] = React.useState<Skill[]>(initialSkills);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [editingSkill, setEditingSkill] = React.useState<Skill | null>(null);
+  const [formData, setFormData] = React.useState<Partial<Skill>>({
+    name: "",
+    level: 50,
+    category: "",
+    icon: "",
+  });
+
+  const handleOpenModal = (skill?: Skill) => {
+    if (skill) {
+      setEditingSkill(skill);
+      setFormData(skill);
+    } else {
+      setEditingSkill(null);
+      setFormData({ name: "", level: 50, category: "", icon: "" });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!formData.name || !formData.category) {
+      toast.error("Veuillez remplir tous les champs obligatoires");
+      return;
+    }
+
+    if (editingSkill) {
+      setSkills((prev) =>
+        prev.map((s) => (s.id === editingSkill.id ? { ...s, ...formData } as Skill : s))
+      );
+      toast.success("Compétence mise à jour");
+    } else {
+      const newSkill: Skill = {
+        id: Date.now().toString(),
+        name: formData.name,
+        level: formData.level || 50,
+        category: formData.category,
+        icon: formData.icon || "",
+      };
+      setSkills((prev) => [...prev, newSkill]);
+      toast.success("Compétence ajoutée");
+    }
+    setIsModalOpen(false);
+  };
+
+  const handleDelete = (skill: Skill) => {
+    setSkills((prev) => prev.filter((s) => s.id !== skill.id));
+    toast.success("Compétence supprimée");
+  };
+
+  const columns = [
+    {
+      key: "name",
+      header: "Nom",
+      render: (skill: Skill) => (
+        <div className="flex items-center gap-2">
+          <Wrench className="h-4 w-4 text-primary" />
+          <span className="font-medium">{skill.name}</span>
+        </div>
+      ),
+    },
+    { key: "category", header: "Catégorie" },
+    {
+      key: "level",
+      header: "Niveau",
+      render: (skill: Skill) => (
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-24 overflow-hidden rounded-full bg-background">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${skill.level}%` }}
+            />
+          </div>
+          <span className="text-xs text-muted">{skill.level}%</span>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Compétences</h2>
+          <p className="text-muted">Gérez vos compétences techniques</p>
+        </div>
+        <Button onClick={() => handleOpenModal()}>
+          <Plus className="mr-2 h-4 w-4" />
+          Ajouter
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {Array.from(new Set(skills.map((s) => s.category))).map((cat) => (
+          <Badge key={cat} variant="secondary">
+            {cat}
+          </Badge>
+        ))}
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={skills}
+        onEdit={handleOpenModal}
+        onDelete={handleDelete}
+      />
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingSkill ? "Modifier la compétence" : "Nouvelle compétence"}
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Nom</label>
+            <Input
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Catégorie</label>
+            <Input
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              Niveau ({formData.level}%)
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={formData.level}
+              onChange={(e) => setFormData({ ...formData, level: Number(e.target.value) })}
+              className="w-full accent-primary"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleSave}>
+              {editingSkill ? "Mettre à jour" : "Ajouter"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
