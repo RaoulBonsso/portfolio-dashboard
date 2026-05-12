@@ -7,8 +7,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { toast } from "@/components/ui/Toast";
 import { Profile } from "@/types";
-import { useProfiles } from "@/hooks/useSupabase";
-import { Code, Link, Globe, MessageCircle, Save, Upload } from "lucide-react";
+import { useProfiles, useStorage } from "@/hooks/useSupabase";
+import { Code, Link, Globe, MessageCircle, Save, Upload, Loader2 } from "lucide-react";
 
 const emptyProfile: Profile = {
   id: "",
@@ -29,8 +29,11 @@ const emptyProfile: Profile = {
 
 export default function ProfilePage() {
   const { data: profiles, loading, error, insert, update } = useProfiles();
+  const { uploadImage } = useStorage();
   const [profile, setProfile] = React.useState<Profile>(emptyProfile);
   const [saving, setSaving] = React.useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (profiles.length > 0) {
@@ -92,8 +95,38 @@ export default function ProfilePage() {
                   <Upload className="h-8 w-8 text-muted" />
                 )}
               </div>
-              <Button variant="secondary" type="button">
-                <Upload className="mr-2 h-4 w-4" />
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploadingPhoto(true);
+                  try {
+                    const url = await uploadImage(file, `profile_${Date.now()}`);
+                    setProfile((prev) => ({ ...prev, photo: url }));
+                    toast.success("Photo uploadée !");
+                  } catch (err: any) {
+                    toast.error(err.message || "Erreur upload");
+                  } finally {
+                    setUploadingPhoto(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }
+                }}
+              />
+              <Button
+                variant="secondary"
+                type="button"
+                disabled={uploadingPhoto}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingPhoto ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="mr-2 h-4 w-4" />
+                )}
                 Changer la photo
               </Button>
             </div>

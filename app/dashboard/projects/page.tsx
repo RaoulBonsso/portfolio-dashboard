@@ -9,11 +9,12 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/Toast";
 import { Project } from "@/types";
-import { useProjects } from "@/hooks/useSupabase";
-import { Plus, ExternalLink, Code } from "lucide-react";
+import { useProjects, useStorage } from "@/hooks/useSupabase";
+import { Plus, ExternalLink, Code, Upload, Loader2 } from "lucide-react";
 
 export default function ProjectsPage() {
   const { data: projects, loading, error, insert, update, remove } = useProjects();
+  const { uploadImage } = useStorage();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
   const [formData, setFormData] = React.useState<Partial<Project>>({
@@ -23,6 +24,8 @@ export default function ProjectsPage() {
     links: { demo: "", repo: "" },
     featured: false,
   });
+  const [uploadingImage, setUploadingImage] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleOpenModal = (project?: Project) => {
     if (project) {
@@ -162,6 +165,49 @@ export default function ProjectsPage() {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Image</label>
+            <div className="flex items-center gap-3">
+              <Input
+                value={formData.images?.[0] || ""}
+                onChange={(e) => setFormData({ ...formData, images: [e.target.value] })}
+                placeholder="URL de l'image"
+              />
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploadingImage(true);
+                  try {
+                    const url = await uploadImage(file, `project_${Date.now()}`);
+                    setFormData((prev) => ({ ...prev, images: [url] }));
+                    toast.success("Image uploadée !");
+                  } catch (err: any) {
+                    toast.error(err.message || "Erreur upload");
+                  } finally {
+                    setUploadingImage(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }
+                }}
+              />
+              <Button
+                variant="secondary"
+                type="button"
+                size="icon"
+                disabled={uploadingImage}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              </Button>
+            </div>
+            {formData.images?.[0] && (
+              <img src={formData.images[0]} alt="Preview" className="h-20 w-20 object-cover rounded border border-[rgba(100,255,218,0.1)]" />
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">

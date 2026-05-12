@@ -9,11 +9,12 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/Toast";
 import { BlogPost } from "@/types";
-import { useBlogPosts } from "@/hooks/useSupabase";
-import { Plus, FileText, Calendar } from "lucide-react";
+import { useBlogPosts, useStorage } from "@/hooks/useSupabase";
+import { Plus, FileText, Calendar, Upload, Loader2 } from "lucide-react";
 
 export default function BlogPage() {
   const { data: posts, loading, error, insert, update, remove } = useBlogPosts();
+  const { uploadImage } = useStorage();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingPost, setEditingPost] = React.useState<BlogPost | null>(null);
   const [formData, setFormData] = React.useState<Partial<BlogPost>>({
@@ -23,6 +24,8 @@ export default function BlogPage() {
     tags: [],
     status: "draft",
   });
+  const [uploadingImage, setUploadingImage] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleOpenModal = (post?: BlogPost) => {
     if (post) {
@@ -161,6 +164,49 @@ export default function BlogPage() {
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Image de couverture</label>
+            <div className="flex items-center gap-3">
+              <Input
+                value={formData.image || ""}
+                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                placeholder="URL de l'image"
+              />
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploadingImage(true);
+                  try {
+                    const url = await uploadImage(file, `blog_${Date.now()}`);
+                    setFormData((prev) => ({ ...prev, image: url }));
+                    toast.success("Image uploadée !");
+                  } catch (err: any) {
+                    toast.error(err.message || "Erreur upload");
+                  } finally {
+                    setUploadingImage(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }
+                }}
+              />
+              <Button
+                variant="secondary"
+                type="button"
+                size="icon"
+                disabled={uploadingImage}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              </Button>
+            </div>
+            {formData.image && (
+              <img src={formData.image} alt="Preview" className="h-20 w-32 object-cover rounded border border-[rgba(100,255,218,0.1)]" />
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">

@@ -8,11 +8,12 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/Toast";
 import { Skill } from "@/types";
-import { useSkills } from "@/hooks/useSupabase";
-import { Plus, Wrench } from "lucide-react";
+import { useSkills, useStorage } from "@/hooks/useSupabase";
+import { Plus, Wrench, Upload, Loader2 } from "lucide-react";
 
 export default function SkillsPage() {
   const { data: skills, loading, error, insert, update, remove } = useSkills();
+  const { uploadImage } = useStorage();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingSkill, setEditingSkill] = React.useState<Skill | null>(null);
   const [formData, setFormData] = React.useState<Partial<Skill>>({
@@ -21,6 +22,8 @@ export default function SkillsPage() {
     category: "",
     icon: "",
   });
+  const [uploadingIcon, setUploadingIcon] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleOpenModal = (skill?: Skill) => {
     if (skill) {
@@ -146,6 +149,49 @@ export default function SkillsPage() {
               value={formData.category}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Icône</label>
+            <div className="flex items-center gap-3">
+              <Input
+                value={formData.icon}
+                onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                placeholder="URL de l'icône"
+              />
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploadingIcon(true);
+                  try {
+                    const url = await uploadImage(file, `skill_${Date.now()}`);
+                    setFormData((prev) => ({ ...prev, icon: url }));
+                    toast.success("Icône uploadée !");
+                  } catch (err: any) {
+                    toast.error(err.message || "Erreur upload");
+                  } finally {
+                    setUploadingIcon(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }
+                }}
+              />
+              <Button
+                variant="secondary"
+                type="button"
+                size="icon"
+                disabled={uploadingIcon}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingIcon ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              </Button>
+            </div>
+            {formData.icon && (
+              <img src={formData.icon} alt="Preview" className="h-10 w-10 object-contain rounded border border-[rgba(100,255,218,0.1)]" />
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">
