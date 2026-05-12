@@ -7,32 +7,77 @@ import { ChartLine } from "@/components/ui/ChartLine";
 import { ChartBar } from "@/components/ui/ChartBar";
 import { ChartPie } from "@/components/ui/ChartPie";
 import { DataTable } from "@/components/ui/DataTable";
-import { Eye, MousePointerClick, Clock, Globe } from "lucide-react";
+import { Eye, MousePointerClick, Users, Globe } from "lucide-react";
 import { useAnalytics } from "@/hooks/useSupabase";
 
+function calcTrend(current: number, previous: number) {
+  if (previous === 0) return { value: current > 0 ? 100 : 0, positive: current >= 0 };
+  const diff = ((current - previous) / previous) * 100;
+  return { value: Math.abs(Math.round(diff * 10) / 10), positive: diff >= 0 };
+}
+
 export default function AnalyticsPage() {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: events, loading, error } = useAnalytics(thirtyDaysAgo, now);
+  const { data: eventsCurrent, loading, error } = useAnalytics(thirtyDaysAgo, now);
+  const { data: eventsPrevious } = useAnalytics(sixtyDaysAgo, thirtyDaysAgo);
 
-  const totalVisits = events.filter((e) => e.event_type === "page_view").length;
-  const totalClicks = events.filter((e) => e.event_type === "click").length;
+  const currentVisits = eventsCurrent.filter((e) => e.event_type === "page_view").length;
+  const currentClicks = eventsCurrent.filter((e) => e.event_type === "click").length;
+  const previousVisits = eventsPrevious.filter((e) => e.event_type === "page_view").length;
+  const previousClicks = eventsPrevious.filter((e) => e.event_type === "click").length;
+
+  const visitsTrend = calcTrend(currentVisits, previousVisits);
+  const clicksTrend = calcTrend(currentClicks, previousClicks);
+
+  const uniqueSessions = new Set(eventsCurrent.map((e) => e.session_id).filter(Boolean)).size;
+  const prevUniqueSessions = new Set(eventsPrevious.map((e) => e.session_id).filter(Boolean)).size;
+  const sessionsTrend = calcTrend(uniqueSessions, prevUniqueSessions);
+
+  const topReferrer = useMemo(() => {
+    const map = new Map<string, number>();
+    eventsCurrent.forEach((e) => {
+      const ref = e.referrer || "Direct";
+      map.set(ref, (map.get(ref) || 0) + 1);
+    });
+    let max = 0;
+    let name = "Direct";
+    map.forEach((count, ref) => {
+      if (count > max) { max = count; name = ref; }
+    });
+    return { name, count: max };
+  }, [eventsCurrent]);
+
+  const prevTopReferrer = useMemo(() => {
+    const map = new Map<string, number>();
+    eventsPrevious.forEach((e) => {
+      const ref = e.referrer || "Direct";
+      map.set(ref, (map.get(ref) || 0) + 1);
+    });
+    let max = 0;
+    map.forEach((count) => {
+      if (count > max) max = count;
+    });
+    return max;
+  }, [eventsPrevious]);
+  const referrerTrend = calcTrend(topReferrer.count, prevTopReferrer);
 
   const visitsData = useMemo(() => {
     const map = new Map<string, number>();
-    events
+    eventsCurrent
       .filter((e) => e.event_type === "page_view")
       .forEach((e) => {
         const day = new Date(e.created_at).toLocaleDateString("fr-FR", { weekday: "short" });
         map.set(day, (map.get(day) || 0) + 1);
       });
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [events]);
+  }, [eventsCurrent]);
 
   const monthlyVisits = useMemo(() => {
     const map = new Map<string, number>();
-    events
+    eventsCurrent
       .filter((e) => e.event_type === "page_view")
       .forEach((e) => {
         const month = e.created_at.slice(0, 7);
@@ -42,36 +87,36 @@ export default function AnalyticsPage() {
         map.set(name, (map.get(name) || 0) + 1);
       });
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [events]);
+  }, [eventsCurrent]);
 
   const sourcesData = useMemo(() => {
     const map = new Map<string, number>();
-    events.forEach((e) => {
+    eventsCurrent.forEach((e) => {
       const source = e.referrer || "Direct";
       map.set(source, (map.get(source) || 0) + 1);
     });
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [events]);
+  }, [eventsCurrent]);
 
   const clicksData = useMemo(() => {
     const map = new Map<string, number>();
-    events
+    eventsCurrent
       .filter((e) => e.event_type === "click")
       .forEach((e) => {
         map.set(e.page_path, (map.get(e.page_path) || 0) + 1);
       });
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [events]);
+  }, [eventsCurrent]);
 
   const pagesData = useMemo(() => {
     const map = new Map<string, number>();
-    events
+    eventsCurrent
       .filter((e) => e.event_type === "page_view")
       .forEach((e) => {
         map.set(e.page_path, (map.get(e.page_path) || 0) + 1);
       });
     return Array.from(map.entries()).map(([name, views]) => ({ name, views }));
-  }, [events]);
+  }, [eventsCurrent]);
 
   const fallback = [{ name: "-", value: 0 }];
   const fallbackPages = [{ name: "-", views: 0 }];
@@ -89,31 +134,31 @@ export default function AnalyticsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Visites ce mois"
-          value={totalVisits.toLocaleString()}
-          description="+15% vs mois dernier"
+          value={currentVisits.toLocaleString()}
+          description={`${visitsTrend.positive ? "+" : "-"}${visitsTrend.value}% vs période précédente`}
           icon={Eye}
-          trend={{ value: 15, positive: true }}
+          trend={visitsTrend}
         />
         <StatsCard
           title="Clics ce mois"
-          value={totalClicks.toLocaleString()}
-          description="+8% vs mois dernier"
+          value={currentClicks.toLocaleString()}
+          description={`${clicksTrend.positive ? "+" : "-"}${clicksTrend.value}% vs période précédente`}
           icon={MousePointerClick}
-          trend={{ value: 8, positive: true }}
+          trend={clicksTrend}
         />
         <StatsCard
-          title="Temps moyen"
-          value="4m 12s"
-          description="+22s vs mois dernier"
-          icon={Clock}
-          trend={{ value: 5, positive: true }}
+          title="Sessions uniques"
+          value={uniqueSessions.toLocaleString()}
+          description={`${sessionsTrend.positive ? "+" : "-"}${sessionsTrend.value}% vs période précédente`}
+          icon={Users}
+          trend={sessionsTrend}
         />
         <StatsCard
-          title="Taux de rebond"
-          value="42.3%"
-          description="-2.1% vs mois dernier"
+          title="Top source"
+          value={topReferrer.name}
+          description={`${referrerTrend.positive ? "+" : "-"}${referrerTrend.value}% vs période précédente`}
           icon={Globe}
-          trend={{ value: 2.1, positive: true }}
+          trend={referrerTrend}
         />
       </div>
 

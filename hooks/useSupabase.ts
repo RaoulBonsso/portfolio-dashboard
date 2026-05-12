@@ -649,6 +649,70 @@ export function useAnalytics(startDate?: string, endDate?: string) {
   return { data, loading, error, refetch: fetch, insert, update, remove };
 }
 
+/* ===================== MESSAGES ===================== */
+
+export interface Message {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  content: string;
+  read: boolean;
+  created_at: string;
+}
+
+export function useMessages() {
+  const [data, setData] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: rows, error: err } = await supabase
+        .from("messages")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (err) throw err;
+      setData(rows || []);
+    } catch (err) {
+      setError(handleError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const markAsRead = async (id: string) => {
+    try {
+      const { error: err } = await supabase
+        .from("messages")
+        .update({ read: true })
+        .eq("id", id);
+      if (err) throw err;
+      await fetch();
+    } catch (err) {
+      throw handleError(err);
+    }
+  };
+
+  const remove = async (id: string) => {
+    try {
+      const { error: err } = await supabase.from("messages").delete().eq("id", id);
+      if (err) throw err;
+      await fetch();
+    } catch (err) {
+      throw handleError(err);
+    }
+  };
+
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
+
+  return { data, loading, error, refetch: fetch, markAsRead, remove };
+}
+
 /* ===================== STORAGE ===================== */
 
 export function useStorage() {

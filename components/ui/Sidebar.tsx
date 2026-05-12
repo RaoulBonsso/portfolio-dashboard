@@ -13,6 +13,7 @@ import {
   Award,
   FileText,
   BarChart3,
+  Mail,
   Menu,
   X,
   LogOut,
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/dashboard/certifications", label: "Certifications", icon: Award },
   { href: "/dashboard/blog", label: "Blog", icon: FileText },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/dashboard/messages", label: "Messages", icon: Mail },
 ];
 
 export function Sidebar() {
